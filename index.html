@@ -201,6 +201,61 @@ input::placeholder{color:var(--muted-2)}
 .modal-btns{display:flex;gap:10px}
 .modal-btns .btn{flex:1}
 
+/* ===================== KAYITLI HESAPLAR (auth ekranı) ===================== */
+.saved-accounts{margin-bottom:18px}
+.account-chips{display:flex;flex-wrap:wrap;gap:8px}
+.acc-chip{
+  display:flex;align-items:center;gap:7px;
+  background:var(--bg-2);border:1px solid var(--border);border-radius:30px;
+  padding:5px 8px 5px 5px;cursor:pointer;transition:.2s;
+}
+.acc-chip:hover{border-color:rgba(216,168,78,.4);background:rgba(216,168,78,.04)}
+.acc-chip-avatar{
+  width:22px;height:22px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(150deg, var(--accent), #8f6a26);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-display);font-size:10.5px;font-weight:700;color:#1a1305;
+}
+.acc-chip-name{font-family:var(--font-mono);font-size:11px;color:var(--text)}
+.acc-chip-x{
+  font-size:13px;color:var(--muted);line-height:1;padding:0 2px;
+  border-radius:50%;transition:.15s;
+}
+.acc-chip-x:hover{color:var(--danger)}
+
+/* ===================== HESAP DEĞİŞTİRİCİ (panel ekranı) ===================== */
+.switcher-wrap{position:relative}
+.account-switcher{
+  position:absolute;top:calc(100% + 10px);right:0;z-index:50;
+  width:250px;background:var(--surface);border:1px solid var(--border-strong);
+  border-radius:14px;padding:14px;
+  box-shadow:0 20px 50px -12px rgba(0,0,0,.6);
+  opacity:0;visibility:hidden;transform:translateY(-6px);
+  transition:opacity .18s ease,transform .18s ease,visibility .18s;
+}
+.account-switcher.open{opacity:1;visibility:visible;transform:translateY(0)}
+.switch-row{
+  display:flex;align-items:center;gap:9px;padding:8px 6px;border-radius:9px;
+  cursor:pointer;transition:.15s;
+}
+.switch-row:hover:not(.aktif){background:rgba(255,255,255,.04)}
+.switch-row.aktif{cursor:default}
+.switch-avatar{
+  width:26px;height:26px;border-radius:8px;flex-shrink:0;
+  background:linear-gradient(150deg, var(--accent), #8f6a26);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-display);font-size:11.5px;font-weight:700;color:#1a1305;
+}
+.switch-name{flex:1;font-family:var(--font-mono);font-size:12px;color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.switch-tag{
+  font-family:var(--font-mono);font-size:8.5px;color:var(--verify);
+  background:var(--verify-dim);border:1px solid rgba(95,191,168,.25);
+  padding:2px 7px;border-radius:20px;text-transform:uppercase;letter-spacing:.05em;
+}
+.switch-x{font-size:14px;color:var(--muted);padding:0 4px;border-radius:50%;transition:.15s}
+.switch-x:hover{color:var(--danger)}
+
 /* ===================== SPINNER ===================== */
 @keyframes spin{to{transform:rotate(360deg)}}
 .spinner{display:inline-block;width:11px;height:11px;
@@ -228,6 +283,11 @@ input::placeholder{color:var(--muted-2)}
       <div class="id-chip"></div>
     </header>
     <div class="barcode"></div>
+
+    <div class="saved-accounts" id="kayitliHesaplar" style="display:none">
+      <div class="section-title">Kayıtlı Hesaplar</div>
+      <div class="account-chips" id="hesapChipsListesi"></div>
+    </div>
 
     <div class="tabs" id="authTabs">
       <div class="tab active" onclick="switchTab('giris')">Giriş Yap</div>
@@ -271,7 +331,15 @@ input::placeholder{color:var(--muted-2)}
           <div class="verified-tag">Doğrulandı</div>
         </div>
       </div>
-      <button class="btn btn-outline btn-sm" onclick="cikisYap()">Çıkış</button>
+      <div class="switcher-wrap">
+        <button class="btn btn-outline btn-sm" onclick="hesapSwitcherAc()">Hesaplar</button>
+        <div class="account-switcher" id="hesapSwitcher">
+          <div class="section-title">Hesap Değiştir</div>
+          <div id="switcherListesi"></div>
+          <button class="btn btn-outline btn-sm" style="width:100%;margin-top:10px" onclick="yeniHesapEkle()">+ Yeni Hesap Ekle</button>
+          <button class="btn btn-outline btn-sm" style="width:100%;margin-top:6px;color:var(--danger);border-color:rgba(226,96,79,.25)" onclick="cikisYap()">Bu Hesaptan Çıkış</button>
+        </div>
+      </div>
     </div>
 
     <!-- BİLGİLER -->
@@ -379,9 +447,154 @@ function oturumTemizle() {
 }
 
 // ================================================================
-// SAYFA YÜKLENINCE — Aktif oturum varsa direkt panel
+// ÇOKLU HESAP DEPOSU — ayrı bir localStorage anahtarında durur.
+// Buradaki hesaplar "kayıtlı" hesaplardır; ana oturum (LS_AD/LS_SIFRE)
+// bunlardan sadece SEÇİLİ olanı işaret eder. Aralarında istediğin
+// zaman geçiş yapabilirsin, hiçbiri ana oturumdan silinmez.
+// ================================================================
+const LS_HESAPLAR = "fx_hesaplar";
+
+function hesaplariGetir() {
+  try {
+    const raw = localStorage.getItem(LS_HESAPLAR);
+    const liste = raw ? JSON.parse(raw) : [];
+    return Array.isArray(liste) ? liste : [];
+  } catch(e) {
+    console.error('Kayıtlı hesaplar okunamadı:', e);
+    return [];
+  }
+}
+
+function hesaplariKaydet(liste) {
+  try {
+    localStorage.setItem(LS_HESAPLAR, JSON.stringify(liste));
+  } catch(e) {
+    console.error('Kayıtlı hesaplar yazılamadı:', e);
+  }
+}
+
+// Yeni hesap ekler ya da şifresi değiştiyse mevcut kaydı günceller
+function hesapEkleVeyaGuncelle(ad, sifre) {
+  const liste = hesaplariGetir();
+  const idx = liste.findIndex(h => h.ad.toLowerCase() === ad.toLowerCase());
+  if (idx >= 0) liste[idx] = { ad, sifre };
+  else liste.push({ ad, sifre });
+  hesaplariKaydet(liste);
+  hesapChipleriCiz();
+}
+
+// Hesabı SADECE bu cihazdaki kayıtlı listeden kaldırır (gerçek hesabı silmez)
+function hesapListedenCikar(ad, evt) {
+  if (evt) evt.stopPropagation();
+  const liste = hesaplariGetir().filter(h => h.ad.toLowerCase() !== ad.toLowerCase());
+  hesaplariKaydet(liste);
+  hesapChipleriCiz();
+  hesapSwitcherCiz();
+}
+
+function _escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+}
+
+// ---- Auth ekranındaki "Kayıtlı Hesaplar" hızlı-giriş çipleri ----
+function hesapChipleriCiz() {
+  const liste = hesaplariGetir();
+  const kutu  = document.getElementById('kayitliHesaplar');
+  const alan  = document.getElementById('hesapChipsListesi');
+  if (!kutu || !alan) return;
+  if (!liste.length) { kutu.style.display = 'none'; return; }
+  kutu.style.display = 'block';
+  alan.innerHTML = liste.map(h => `
+    <div class="acc-chip" onclick="hizliGiris('${_escHtml(h.ad)}')">
+      <span class="acc-chip-avatar">${_escHtml(h.ad.charAt(0).toUpperCase())}</span>
+      <span class="acc-chip-name">${_escHtml(h.ad)}</span>
+      <span class="acc-chip-x" onclick="hesapListedenCikar('${_escHtml(h.ad)}', event)" title="Listeden kaldır">×</span>
+    </div>
+  `).join('');
+}
+
+// Kayıtlı bir çipe tıklayınca şifreyi yeniden yazmadan giriş yapar,
+// başarılı olursa o hesabı aktif oturuma alır.
+function hizliGiris(ad) {
+  const h = hesaplariGetir().find(x => x.ad.toLowerCase() === ad.toLowerCase());
+  if (!h) return;
+  setStatus('gStatus','Giriş yapılıyor...','');
+  api({islem:'giris', takmaAd:h.ad, sifre:h.sifre}, r => {
+    if (r && r.durum === 'Basarili') {
+      oturumKaydet(h.ad, h.sifre);
+      setStatus('gStatus','Erişim onaylandı ✓','ok');
+      setTimeout(() => panelGoster(h.ad, h.sifre), 400);
+    } else {
+      setStatus('gStatus', hata(r) + ' (kayıtlı şifre artık geçersiz olabilir)', 'hata');
+    }
+  });
+}
+
+// ---- Panel içindeki "Hesaplar" açılır listesi ----
+function hesapSwitcherAc() {
+  hesapSwitcherCiz();
+  document.getElementById('hesapSwitcher').classList.toggle('open');
+}
+function hesapSwitcherKapat() {
+  const el = document.getElementById('hesapSwitcher');
+  if (el) el.classList.remove('open');
+}
+
+function hesapSwitcherCiz() {
+  const { ad: aktifAd } = oturum();
+  const liste = hesaplariGetir();
+  const alan  = document.getElementById('switcherListesi');
+  if (!alan) return;
+  if (!liste.length) {
+    alan.innerHTML = `<div style="font-size:11px;color:var(--muted);padding:6px 4px;">Henüz kayıtlı hesap yok.</div>`;
+    return;
+  }
+  alan.innerHTML = liste.map(h => {
+    const aktif = h.ad.toLowerCase() === (aktifAd || '').toLowerCase();
+    return `
+    <div class="switch-row ${aktif ? 'aktif' : ''}" ${aktif ? '' : `onclick="hesapSecVeGecis('${_escHtml(h.ad)}')"`}>
+      <span class="switch-avatar">${_escHtml(h.ad.charAt(0).toUpperCase())}</span>
+      <span class="switch-name">${_escHtml(h.ad)}</span>
+      ${aktif
+        ? '<span class="switch-tag">Aktif</span>'
+        : `<span class="switch-x" onclick="hesapListedenCikar('${_escHtml(h.ad)}', event)" title="Listeden kaldır">×</span>`}
+    </div>`;
+  }).join('');
+}
+
+// Kayıtlı hesaplar arasında anında geçiş — şifre sormaz, çünkü zaten
+// bu cihazda kayıtlı. Sadece ana oturum işaretçisini değiştirir.
+function hesapSecVeGecis(ad) {
+  const h = hesaplariGetir().find(x => x.ad.toLowerCase() === ad.toLowerCase());
+  if (!h) return;
+  hesapSwitcherKapat();
+  oturumKaydet(h.ad, h.sifre);
+  panelGoster(h.ad, h.sifre);
+}
+
+// "+ Yeni Hesap Ekle" — mevcut kayıtlı hesap listesine DOKUNMAZ,
+// sadece aktif oturumu bırakıp giriş ekranına döner.
+function yeniHesapEkle() {
+  hesapSwitcherKapat();
+  oturumTemizle();
+  document.getElementById('panelScreen').classList.remove('active');
+  document.getElementById('authScreen').classList.add('active');
+  switchTab('giris');
+  hesapChipleriCiz();
+}
+
+// dışarı tıklayınca switcher'ı kapat
+document.addEventListener('click', e => {
+  const wrap = document.querySelector('.switcher-wrap');
+  if (wrap && !wrap.contains(e.target)) hesapSwitcherKapat();
+});
+
+// ================================================================
+// SAYFA YÜKLENINCE — Aktif oturum varsa direkt panel,
+// her durumda kayıtlı hesap çiplerini çiz
 // ================================================================
 window.onload = function() {
+  hesapChipleriCiz();
   const {ad, sifre} = oturum();
   if (ad && sifre) {
     panelGoster(ad, sifre);
@@ -479,6 +692,7 @@ function girisYap() {
     setBtnLoad('gBtn', false, 'Giriş Yap');
     if(r && r.durum === 'Basarili') {
       oturumKaydet(ad, sifre);
+      hesapEkleVeyaGuncelle(ad, sifre);
       setStatus('gStatus','Erişim onaylandı ✓','ok');
       setTimeout(() => panelGoster(ad, sifre), 600);
     } else {
@@ -509,6 +723,7 @@ function kayitOl() {
     setBtnLoad('kBtn', false, 'Hesap Oluştur');
     if(r === 'Basarili') {
       oturumKaydet(ad, sifre);
+      hesapEkleVeyaGuncelle(ad, sifre);
       setStatus('kStatus','Hesap oluşturuldu ✓','ok');
       setTimeout(() => panelGoster(ad, sifre), 600);
     } else {
@@ -526,6 +741,7 @@ function panelGoster(ad, sifre) {
   document.getElementById('avatarLetter').innerText = ad.charAt(0).toUpperCase();
   document.getElementById('panelName').innerText    = ad;
   document.getElementById('panelMeta').innerText    = 'Yükleniyor...';
+  hesapSwitcherCiz();
 
   api({islem:'bilgiGetir', takmaAd:ad, sifre:sifre}, r => {
     if(r && r.durum === 'Basarili') {
@@ -544,12 +760,14 @@ function panelGoster(ad, sifre) {
 // ÇIKIŞ
 // ================================================================
 function cikisYap() {
-  oturumTemizle();
+  hesapSwitcherKapat();
+  oturumTemizle(); // sadece aktif oturum işaretçisi temizlenir, kayıtlı hesap listesi korunur
   document.getElementById('panelScreen').classList.remove('active');
   document.getElementById('authScreen').classList.add('active');
   ['gUser','gPass','kUser','kEmail','kPass'].forEach(id => { document.getElementById(id).value=''; });
   setStatus('gStatus',''); setStatus('kStatus','');
   switchTab('giris');
+  hesapChipleriCiz();
 }
 
 // ================================================================
@@ -571,7 +789,8 @@ function sifreDegistir() {
   api({islem:'sifreDegistir', takmaAd:ad, eskiSifre:eski, yeniSifre:yeni}, r => {
     setBtnLoad('sBtn', false, 'Şifreyi Güncelle');
     if(r === 'Basarili') {
-      oturumKaydet(ad, yeni);  // localStorage güncelle
+      oturumKaydet(ad, yeni);       // aktif oturumu güncelle
+      hesapEkleVeyaGuncelle(ad, yeni); // kayıtlı hesap listesindeki şifreyi de güncelle
       setStatus('sDurum','Şifre güncellendi ✓','ok');
       document.getElementById('eski').value='';
       document.getElementById('yeni').value='';
@@ -632,6 +851,7 @@ function hesapSil() {
   api({islem:'sil', takmaAd:ad, sifre:sifre}, r => {
     if(r === 'Basarili') {
       setStatus('silDurum','Hesap silindi.','ok');
+      hesapListedenCikar(ad);  // hesap gerçekten silindiği için kayıtlı listeden de çıkar
       oturumTemizle();
       setTimeout(cikisYap, 1200);
     } else {
