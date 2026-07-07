@@ -1,2 +1,696 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>FIXING — Universal Identity System</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0b0e;
+  --bg-2:#0d0f13;
+  --surface:#14171d;
+  --surface-2:#1a1e26;
+  --border:rgba(255,255,255,.08);
+  --border-strong:rgba(255,255,255,.14);
+  --accent:#d8a84e;      /* brass / stamp gold */
+  --accent-dim:rgba(216,168,78,.12);
+  --verify:#5fbfa8;      /* verification teal */
+  --verify-dim:rgba(95,191,168,.12);
+  --danger:#e2604f;
+  --danger-dim:rgba(226,96,79,.1);
+  --text:#eceef2;
+  --muted:#6d7280;
+  --muted-2:#454851;
+  --font-display:'Space Grotesk',sans-serif;
+  --font-body:'Inter',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(216,168,78,.06), transparent),
+    radial-gradient(ellipse 700px 500px at 100% 100%, rgba(95,191,168,.05), transparent),
+    var(--bg);
+  color:var(--text);font-family:var(--font-body);
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  overflow:hidden;position:relative;
+}
+canvas#bg{position:fixed;inset:0;z-index:0;opacity:.5}
 
-<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#050505;color:#fff;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;user-select:none;overflow:hidden}.s_{border:3px solid #1a1a1a;border-top:3px solid #f00;border-radius:50%;width:30px;height:30px;animation:r 1s linear infinite}@keyframes r{100%{transform:rotate(360deg)}}#b{display:none;text-align:center;padding:20px}</style></head><body oncontextmenu="return false"><div id="l"><div class="s_"></div><p id="i" style="margin-top:15px;letter-spacing:2px;font-size:10px;opacity:.5;text-align:center"></p></div><div id="b"><div id="d" style="color:#f00;font-size:14px;font-weight:700;margin-bottom:10px"></div><div style="font-size:10px;opacity:.7;line-height:1.6">KAYNAK KODLARI KORUMA ALTINDADIR.<br>ISLEMINIZ GUVENLIK NEDENIYLE DURDURULDU.</div></div><script>(function(){const s=localStorage,k='ob_id';let u=s.getItem(k);if(!u){u='F-'+Math.random().toString(16).slice(2,8).toUpperCase();s.setItem(k,u)}document.getElementById('i').innerText=u;const t=()=>{document.getElementById('l').style.display='none';document.getElementById('d').innerText=`ERISIM ENGELI / ${u}`;document.getElementById('b').style.display='block';throw 'STOP'};window.onkeydown=(e)=>{if(e.keyCode==123||(e.ctrlKey&&e.shiftKey&&(e.keyCode==73||e.keyCode==74))||(e.ctrlKey&&e.keyCode==85))t()};document.addEventListener('contextmenu',e=>e.preventDefault());(async()=>{try{const r=await fetch("obfexkey.obfex");if(!r.ok)throw 0;const c=await r.text();eval(c)}catch(e){if(e!=='STOP')console.log('Ready')}})()})()</script></body></html>
+/* faint id-card grid texture on the whole viewport */
+body::before{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:
+    linear-gradient(rgba(255,255,255,.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px);
+  background-size:34px 34px;
+  mask-image:radial-gradient(ellipse 900px 700px at 50% 40%, black, transparent);
+}
+
+/* ===================== SCREENS ===================== */
+.screen{position:relative;z-index:10;width:100%;max-width:440px;padding:20px;display:none}
+.screen.active{display:block;animation:screenIn .5s cubic-bezier(.16,1,.3,1)}
+@keyframes screenIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===================== ID CARD ===================== */
+.card{
+  position:relative;
+  background:linear-gradient(160deg, var(--surface) 0%, var(--bg-2) 100%);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:36px 32px 30px;
+  backdrop-filter:blur(24px);
+  box-shadow:0 30px 80px -30px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.02) inset;
+  clip-path:polygon(0 0,calc(100% - 28px) 0,100% 28px,100% 100%,0 100%);
+  overflow:hidden;
+}
+/* notch accent fill */
+.card::after{
+  content:"";position:absolute;top:0;right:0;width:28px;height:28px;
+  background:linear-gradient(135deg, var(--accent), transparent 70%);
+  opacity:.55;
+}
+/* scanning sweep, plays once on load */
+.card::before{
+  content:"";position:absolute;left:0;right:0;height:70px;top:-70px;
+  background:linear-gradient(180deg, rgba(216,168,78,0), rgba(216,168,78,.16), rgba(216,168,78,0));
+  animation:scanSweep 1.5s ease-out .15s 1;
+  pointer-events:none;
+}
+@keyframes scanSweep{
+  0%{top:-70px}
+  100%{top:110%}
+}
+
+/* ===================== HEADER / LOGO ===================== */
+header{margin-bottom:28px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.logo{font-family:var(--font-display);font-size:28px;font-weight:700;letter-spacing:-.02em;color:var(--text)}
+.logo b{color:var(--accent);font-weight:700}
+.logo-sub{
+  font-family:var(--font-mono);font-size:9.5px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.14em;margin-top:5px
+}
+.id-chip{
+  width:34px;height:24px;border-radius:5px;flex-shrink:0;
+  background:linear-gradient(135deg, var(--accent) 0%, #a67c2e 100%);
+  position:relative;box-shadow:0 2px 8px rgba(216,168,78,.25);
+}
+.id-chip::before{
+  content:"";position:absolute;inset:4px;border:1px solid rgba(0,0,0,.25);border-radius:3px;
+}
+
+/* barcode strip beneath header */
+.barcode{
+  height:14px;margin-bottom:26px;border-radius:2px;opacity:.5;
+  background:repeating-linear-gradient(90deg,
+    var(--muted-2) 0 1px, transparent 1px 3px,
+    var(--muted-2) 3px 5px, transparent 5px 7px,
+    var(--muted-2) 7px 9px, transparent 9px 14px);
+}
+
+/* ===================== TABS ===================== */
+.tabs{display:flex;gap:4px;margin-bottom:20px;
+  background:var(--bg-2);border-radius:11px;padding:4px;border:1px solid var(--border)}
+.tab{flex:1;padding:9px 8px;border-radius:8px;font-family:var(--font-mono);font-size:11px;font-weight:600;
+  text-align:center;cursor:pointer;color:var(--muted);transition:.2s;
+  letter-spacing:.04em;text-transform:uppercase}
+.tab.active{background:var(--accent-dim);color:var(--accent)}
+.tab:hover:not(.active){color:#aab0bd}
+.tab-content{display:none}
+.tab-content.active{display:block;animation:tabIn .3s ease}
+@keyframes tabIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===================== FIELDS ===================== */
+.field{margin-bottom:11px}
+label{display:block;font-family:var(--font-mono);font-size:9.5px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px;font-weight:600}
+label span{color:var(--muted-2);text-transform:none;letter-spacing:0;font-weight:400}
+input{width:100%;height:48px;background:var(--bg-2);
+  border:1px solid var(--border);border-radius:10px;padding:0 16px;
+  color:var(--text);font-size:14px;font-family:var(--font-body);outline:none;
+  transition:border .2s,background .2s,box-shadow .2s}
+input:focus{background:rgba(216,168,78,.03);border-color:rgba(216,168,78,.4);
+  box-shadow:0 0 0 3px rgba(216,168,78,.06)}
+input::placeholder{color:var(--muted-2)}
+
+/* ===================== BUTTONS ===================== */
+.btn{width:100%;height:48px;border:none;border-radius:10px;font-size:12.5px;
+  font-weight:600;font-family:var(--font-mono);letter-spacing:.06em;text-transform:uppercase;
+  cursor:pointer;transition:all .2s;margin-top:8px}
+.btn-primary{background:var(--accent);color:#1a1305}
+.btn-primary:hover{background:#e6bb63;transform:translateY(-1px);box-shadow:0 8px 20px -8px rgba(216,168,78,.5)}
+.btn-primary:active{transform:translateY(0)}
+.btn-outline{background:transparent;border:1px solid var(--border-strong);color:var(--text);margin-top:8px}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+.btn-danger{background:var(--danger-dim);border:1px solid rgba(226,96,79,.25);
+  color:var(--danger);margin-top:8px}
+.btn-danger:hover{background:rgba(226,96,79,.18)}
+.btn-sm{width:auto;padding:0 16px;height:36px;font-size:10px;border-radius:8px;margin-top:0}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none !important;box-shadow:none !important}
+
+/* ===================== STATUS ===================== */
+.status{min-height:18px;margin-top:12px;font-size:12px;text-align:center;
+  font-family:var(--font-mono);transition:all .3s;line-height:1.5}
+
+/* ===================== PANEL HEADER ===================== */
+.panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:26px;gap:12px}
+.avatar{width:52px;height:52px;border-radius:10px;flex-shrink:0;
+  background:linear-gradient(150deg, var(--accent) 0%, #8f6a26 100%);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-display);font-size:20px;font-weight:700;color:#1a1305;
+  border:1px solid rgba(255,255,255,.15);
+  box-shadow:0 6px 16px -6px rgba(216,168,78,.4)}
+.user-name{font-family:var(--font-display);font-size:19px;font-weight:700;letter-spacing:-.01em}
+.user-meta{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin-top:3px}
+.verified-tag{
+  display:inline-flex;align-items:center;gap:4px;
+  font-family:var(--font-mono);font-size:9px;color:var(--verify);
+  background:var(--verify-dim);border:1px solid rgba(95,191,168,.25);
+  padding:3px 8px;border-radius:20px;letter-spacing:.06em;text-transform:uppercase;
+  margin-top:6px;
+}
+.verified-tag::before{content:"●";font-size:7px}
+
+/* ===================== INFO / DATA ROWS ===================== */
+.section-title{font-family:var(--font-mono);font-size:9px;text-transform:uppercase;letter-spacing:.14em;
+  color:var(--muted);font-weight:600;margin-bottom:12px;
+  padding-bottom:8px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px}
+.section-title::after{content:"";flex:1;height:1px;background:var(--border)}
+.info-row{display:flex;align-items:center;justify-content:space-between;
+  padding:10px 0;border-bottom:1px dashed var(--border);font-size:12px}
+.info-row:last-child{border-bottom:none}
+.info-label{color:var(--muted);font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.09em}
+.info-val{color:var(--text);font-weight:500;font-size:12.5px;font-family:var(--font-mono);text-align:right;
+  max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.info-block{margin-bottom:24px}
+
+/* ===================== MODAL ===================== */
+.modal-overlay{position:fixed;inset:0;z-index:100;
+  background:rgba(6,7,9,.8);backdrop-filter:blur(8px);
+  display:none;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex;animation:fadeBg .2s ease}
+@keyframes fadeBg{from{opacity:0}to{opacity:1}}
+.modal{background:var(--surface);border:1px solid var(--border-strong);border-radius:16px;
+  padding:28px;max-width:320px;width:90%;text-align:center;
+  clip-path:polygon(0 0,calc(100% - 20px) 0,100% 20px,100% 100%,0 100%);
+  animation:screenIn .3s ease}
+.modal h3{font-family:var(--font-display);font-size:18px;margin-bottom:9px;font-weight:700}
+.modal p{font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:22px}
+.modal-btns{display:flex;gap:10px}
+.modal-btns .btn{flex:1}
+
+/* ===================== SPINNER ===================== */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{display:inline-block;width:11px;height:11px;
+  border:2px solid rgba(0,0,0,.2);border-top-color:#1a1305;
+  border-radius:50%;animation:spin .6s linear infinite;
+  vertical-align:middle;margin-right:6px}
+.btn-outline .spinner,.btn-danger .spinner{border-color:rgba(255,255,255,.15);border-top-color:currentColor}
+
+@media (max-width:480px){
+  .card{padding:28px 22px 24px}
+}
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+
+<!-- ====== GİRİŞ / KAYIT ====== -->
+<div class="screen active" id="authScreen">
+  <div class="card">
+    <header>
+      <div>
+        <div class="logo"><b>FIX</b>ING</div>
+        <div class="logo-sub">Universal Identity System</div>
+      </div>
+      <div class="id-chip"></div>
+    </header>
+    <div class="barcode"></div>
+
+    <div class="tabs" id="authTabs">
+      <div class="tab active" onclick="switchTab('giris')">Giriş Yap</div>
+      <div class="tab"        onclick="switchTab('kayit')">Kayıt Ol</div>
+    </div>
+
+    <!-- GİRİŞ -->
+    <div class="tab-content active" id="formGiris">
+      <div class="field"><label>Kullanıcı Adı</label>
+        <input type="text" id="gUser" placeholder="kullanici_adi" autocomplete="off"></div>
+      <div class="field"><label>Şifre</label>
+        <input type="password" id="gPass" placeholder="••••••••"></div>
+      <button class="btn btn-primary" id="gBtn" onclick="girisYap()">Giriş Yap</button>
+      <div class="status" id="gStatus"></div>
+    </div>
+
+    <!-- KAYIT -->
+    <div class="tab-content" id="formKayit">
+      <div class="field"><label>Kullanıcı Adı</label>
+        <input type="text" id="kUser" placeholder="kullanici_adi" autocomplete="off"></div>
+      <div class="field"><label>E-posta</label>
+        <input type="email" id="kEmail" placeholder="ornek@mail.com" autocomplete="off"></div>
+      <div class="field"><label>Şifre <span>min 8 karakter</span></label>
+        <input type="password" id="kPass" placeholder="••••••••"></div>
+      <button class="btn btn-primary" id="kBtn" onclick="kayitOl()">Hesap Oluştur</button>
+      <div class="status" id="kStatus"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== PANEL ====== -->
+<div class="screen" id="panelScreen">
+  <div class="card">
+    <!-- HEADER -->
+    <div class="panel-header">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div class="avatar" id="avatarLetter">?</div>
+        <div>
+          <div class="user-name" id="panelName">—</div>
+          <div class="user-meta" id="panelMeta">yükleniyor...</div>
+          <div class="verified-tag">Doğrulandı</div>
+        </div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="cikisYap()">Çıkış</button>
+    </div>
+
+    <!-- BİLGİLER -->
+    <div class="info-block">
+      <div class="section-title">Hesap Bilgileri</div>
+      <div class="info-row"><span class="info-label">Kullanıcı Adı</span><span class="info-val" id="iAd">—</span></div>
+      <div class="info-row"><span class="info-label">E-posta</span><span class="info-val" id="iEposta">—</span></div>
+      <div class="info-row"><span class="info-label">Kayıt</span><span class="info-val" id="iKayit">—</span></div>
+      <div class="info-row"><span class="info-label">Son Giriş</span><span class="info-val" id="iSon">—</span></div>
+    </div>
+
+    <!-- AYAR TABLARI -->
+    <div class="section-title">Hesap Yönetimi</div>
+    <div class="tabs" id="panelTabs">
+      <div class="tab active" onclick="switchPanelTab('sifre')">Şifre</div>
+      <div class="tab"        onclick="switchPanelTab('eposta')">E-posta</div>
+      <div class="tab"        onclick="switchPanelTab('sil')">Hesabı Sil</div>
+    </div>
+
+    <!-- ŞİFRE DEĞİŞTİR -->
+    <div class="tab-content active" id="pSifre">
+      <div class="field"><label>Mevcut Şifre</label><input type="password" id="eski" placeholder="••••••••"></div>
+      <div class="field"><label>Yeni Şifre</label><input type="password" id="yeni" placeholder="••••••••"></div>
+      <div class="field"><label>Yeni Şifre Tekrar</label><input type="password" id="yeni2" placeholder="••••••••"></div>
+      <button class="btn btn-primary" id="sBtn" onclick="sifreDegistir()">Şifreyi Güncelle</button>
+      <div class="status" id="sDurum"></div>
+    </div>
+
+    <!-- E-POSTA DEĞİŞTİR -->
+    <div class="tab-content" id="pEposta">
+      <div class="field"><label>Şifreniz</label><input type="password" id="eDogrul" placeholder="••••••••"></div>
+      <div class="field"><label>Yeni E-posta</label><input type="email" id="eYeni" placeholder="yeni@mail.com"></div>
+      <button class="btn btn-primary" id="eBtn" onclick="epostaDegistir()">E-postayı Güncelle</button>
+      <div class="status" id="eDurum"></div>
+    </div>
+
+    <!-- HESAP SİL -->
+    <div class="tab-content" id="pSil">
+      <p style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:14px">
+        Hesabınız <strong style="color:#fff">kalıcı olarak</strong> silinir, tüm verileriniz yok olur. Bu işlem geri alınamaz.
+      </p>
+      <div class="field"><label>Şifrenizle Onaylayın</label><input type="password" id="silPass" placeholder="••••••••"></div>
+      <button class="btn btn-danger" onclick="hesapSilOnay()">Hesabı Kalıcı Sil</button>
+      <div class="status" id="silDurum"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== MODAL ====== -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3>Emin misiniz?</h3>
+    <p>Hesabınız <strong>kalıcı olarak silinecek</strong>. Tüm verileriniz yok olacak ve bu işlem geri alınamaz.</p>
+    <div class="modal-btns">
+      <button class="btn btn-outline" onclick="modalKapat()">İptal</button>
+      <button class="btn btn-danger"  onclick="hesapSil()">Evet, Sil</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================================================================
+// ⚠️ SCRIPT URL'İNİ BURAYA YAPIŞTIRINIZ
+// ================================================================
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzVlKVsfd2gX1-FdQlDGAzLCGiIPA1GNK7IpX5lQtGxEv-SRtkdH9TOETse9HnxljQD/exec";
+
+// ================================================================
+// OTURUM — localStorage (sayfa açılışında TEMİZLENMEZ)
+// ================================================================
+const LS_AD    = "aktifKullanici";
+const LS_SIFRE = "fx_sifre";
+
+function oturum() {
+  try {
+    return { ad: localStorage.getItem(LS_AD), sifre: localStorage.getItem(LS_SIFRE) };
+  } catch(e) {
+    console.error('localStorage okunamadı:', e);
+    return { ad: null, sifre: null };
+  }
+}
+
+function oturumKaydet(a, s) {
+  try {
+    localStorage.setItem(LS_AD, a);
+    localStorage.setItem(LS_SIFRE, s);
+    // yazma doğrulaması — bazı ortamlarda (iframe/private mod) setItem hata
+    // fırlatmadan sessizce başarısız olabilir, bu yüzden geri okuyup kontrol ediyoruz
+    if (localStorage.getItem(LS_AD) !== a) {
+      console.warn('⚠ localStorage yazıldı ama doğrulanamadı. Tarayıcı/ortam ' +
+        '(gizli sekme, iframe içinde üçüncü taraf depolama engeli vb.) localStorage\'ı ' +
+        'kısıtlıyor olabilir. Sayfayı gerçek bir sekmede / deploy edilmiş linkte test edin.');
+    }
+  } catch(e) {
+    console.error('localStorage yazılamadı:', e);
+  }
+}
+
+function oturumTemizle() {
+  try {
+    localStorage.removeItem(LS_AD);
+    localStorage.removeItem(LS_SIFRE);
+  } catch(e) {
+    console.error('localStorage temizlenemedi:', e);
+  }
+}
+
+// ================================================================
+// SAYFA YÜKLENINCE — Aktif oturum varsa direkt panel
+// ================================================================
+window.onload = function() {
+  const {ad, sifre} = oturum();
+  if (ad && sifre) {
+    panelGoster(ad, sifre);
+  }
+};
+
+// ================================================================
+// TAB GEÇİŞ
+// ================================================================
+function switchTab(mod) {
+  document.querySelectorAll('#authTabs .tab').forEach((t,i) =>
+    t.classList.toggle('active', (i===0 && mod==='giris') || (i===1 && mod==='kayit')));
+  document.getElementById('formGiris').classList.toggle('active', mod==='giris');
+  document.getElementById('formKayit').classList.toggle('active', mod==='kayit');
+  setStatus('gStatus',''); setStatus('kStatus','');
+}
+
+function switchPanelTab(tab) {
+  const tabs = ['sifre','eposta','sil'];
+  document.querySelectorAll('#panelTabs .tab').forEach((t,i) =>
+    t.classList.toggle('active', tabs[i]===tab));
+  tabs.forEach(t => {
+    const el = document.getElementById('p'+t.charAt(0).toUpperCase()+t.slice(1));
+    if(el) el.classList.toggle('active', t===tab);
+  });
+}
+
+// ================================================================
+// API ÇAĞIRICI (JSONP)
+// ================================================================
+function api(params, cb) {
+  const cbName = "fx_" + Date.now() + "_" + (Math.random()*1e5|0);
+  const qs = Object.entries({...params, callback: cbName})
+    .map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&');
+
+  window[cbName] = function(r) {
+    try { document.getElementById(cbName).remove(); } catch(e){}
+    delete window[cbName];
+    cb(r);
+  };
+  const s = document.createElement('script');
+  s.src = SCRIPT_URL + '?' + qs;
+  s.id  = cbName;
+  s.onerror = () => { cb("HataBağlantı"); };
+  document.body.appendChild(s);
+}
+
+// ================================================================
+// DURUM & BUTON YARDIMCILARI
+// ================================================================
+function setStatus(id, msg, tip) {
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.innerText = msg;
+  el.style.color = tip==='ok' ? 'var(--verify)' : tip==='hata' ? 'var(--danger)' : 'var(--muted)';
+}
+
+function setBtnLoad(id, yukleniyor, orijinal) {
+  const b = document.getElementById(id);
+  if(!b) return;
+  b.disabled = yukleniyor;
+  b.innerHTML = yukleniyor
+    ? `<span class="spinner"></span> İşleniyor`
+    : orijinal;
+}
+
+const HATALAR = {
+  "HataAlanlarEksik":        "Lütfen tüm alanları doldurun.",
+  "HataSifreKisa":           "Şifre en az 8 karakter olmalıdır.",
+  "HataKullaniciAdiMevcut":  "Bu kullanıcı adı zaten kullanımda.",
+  "HataEpostaMevcut":        "Bu e-posta zaten kayıtlı.",
+  "HataGeçersizEposta":      "Geçerli bir e-posta girin.",
+  "HataKullaniciBulunamadi": "Kullanıcı bulunamadı.",
+  "HataYanlisŞifre":         "Şifre yanlış.",
+  "HataRezerveAd":           "Bu kullanıcı adı rezerve edilmiştir.",
+  "HataBağlantı":            "Sunucuya ulaşılamadı.",
+  "Hatali Bilgi":             "Kullanıcı adı veya şifre hatalı."
+};
+function hata(kod) {
+  return HATALAR[kod] || (typeof kod==='string' ? kod : "Bilinmeyen hata.");
+}
+
+// ================================================================
+// GİRİŞ YAP
+// ================================================================
+function girisYap() {
+  const ad    = document.getElementById('gUser').value.trim();
+  const sifre = document.getElementById('gPass').value.trim();
+  if(!ad || !sifre) { setStatus('gStatus','Alanları doldurun.','hata'); return; }
+
+  setBtnLoad('gBtn', true, 'Giriş Yap');
+  setStatus('gStatus','','');
+
+  api({islem:'giris', takmaAd:ad, sifre:sifre}, r => {
+    setBtnLoad('gBtn', false, 'Giriş Yap');
+    if(r && r.durum === 'Basarili') {
+      oturumKaydet(ad, sifre);
+      setStatus('gStatus','Erişim onaylandı ✓','ok');
+      setTimeout(() => panelGoster(ad, sifre), 600);
+    } else {
+      setStatus('gStatus', hata(r), 'hata');
+    }
+  });
+}
+
+// ================================================================
+// KAYIT OL
+// ================================================================
+function kayitOl() {
+  const ad    = document.getElementById('kUser').value.trim();
+  const ep    = document.getElementById('kEmail').value.trim();
+  const sifre = document.getElementById('kPass').value.trim();
+
+  if(!ad || !ep || !sifre)   { setStatus('kStatus','Tüm alanları doldurun.','hata'); return; }
+  if(sifre.length < 8)       { setStatus('kStatus','Şifre en az 8 karakter.','hata'); return; }
+  if(!ep.includes('@'))      { setStatus('kStatus','Geçerli e-posta girin.','hata'); return; }
+  if(ad.toLowerCase().replace(/\s+/g,'') === 'fixingllc') {
+    setStatus('kStatus','Bu kullanıcı adı rezerve.','hata'); return;
+  }
+
+  setBtnLoad('kBtn', true, 'Hesap Oluştur');
+  setStatus('kStatus','','');
+
+  api({islem:'kayit', takmaAd:ad, eposta:ep, sifre:sifre}, r => {
+    setBtnLoad('kBtn', false, 'Hesap Oluştur');
+    if(r === 'Basarili') {
+      oturumKaydet(ad, sifre);
+      setStatus('kStatus','Hesap oluşturuldu ✓','ok');
+      setTimeout(() => panelGoster(ad, sifre), 600);
+    } else {
+      setStatus('kStatus', hata(r), 'hata');
+    }
+  });
+}
+
+// ================================================================
+// PANEL GÖSTER
+// ================================================================
+function panelGoster(ad, sifre) {
+  document.getElementById('authScreen').classList.remove('active');
+  document.getElementById('panelScreen').classList.add('active');
+  document.getElementById('avatarLetter').innerText = ad.charAt(0).toUpperCase();
+  document.getElementById('panelName').innerText    = ad;
+  document.getElementById('panelMeta').innerText    = 'Yükleniyor...';
+
+  api({islem:'bilgiGetir', takmaAd:ad, sifre:sifre}, r => {
+    if(r && r.durum === 'Basarili') {
+      document.getElementById('panelMeta').innerText = r.eposta;
+      document.getElementById('iAd').innerText      = r.takmaAd;
+      document.getElementById('iEposta').innerText  = r.eposta;
+      document.getElementById('iKayit').innerText   = r.kayitTarih;
+      document.getElementById('iSon').innerText     = r.sonGiris;
+    } else {
+      document.getElementById('panelMeta').innerText = 'Bilgiler yüklenemedi';
+    }
+  });
+}
+
+// ================================================================
+// ÇIKIŞ
+// ================================================================
+function cikisYap() {
+  oturumTemizle();
+  document.getElementById('panelScreen').classList.remove('active');
+  document.getElementById('authScreen').classList.add('active');
+  ['gUser','gPass','kUser','kEmail','kPass'].forEach(id => { document.getElementById(id).value=''; });
+  setStatus('gStatus',''); setStatus('kStatus','');
+  switchTab('giris');
+}
+
+// ================================================================
+// ŞİFRE DEĞİŞTİR
+// ================================================================
+function sifreDegistir() {
+  const {ad} = oturum();
+  const eski  = document.getElementById('eski').value.trim();
+  const yeni  = document.getElementById('yeni').value.trim();
+  const yeni2 = document.getElementById('yeni2').value.trim();
+
+  if(!eski||!yeni||!yeni2)  { setStatus('sDurum','Tüm alanları doldurun.','hata'); return; }
+  if(yeni !== yeni2)         { setStatus('sDurum','Yeni şifreler eşleşmiyor.','hata'); return; }
+  if(yeni.length < 8)        { setStatus('sDurum','Şifre en az 8 karakter.','hata'); return; }
+
+  setBtnLoad('sBtn', true, 'Şifreyi Güncelle');
+  setStatus('sDurum','','');
+
+  api({islem:'sifreDegistir', takmaAd:ad, eskiSifre:eski, yeniSifre:yeni}, r => {
+    setBtnLoad('sBtn', false, 'Şifreyi Güncelle');
+    if(r === 'Basarili') {
+      oturumKaydet(ad, yeni);  // localStorage güncelle
+      setStatus('sDurum','Şifre güncellendi ✓','ok');
+      document.getElementById('eski').value='';
+      document.getElementById('yeni').value='';
+      document.getElementById('yeni2').value='';
+    } else {
+      setStatus('sDurum', hata(r), 'hata');
+    }
+  });
+}
+
+// ================================================================
+// E-POSTA DEĞİŞTİR
+// ================================================================
+function epostaDegistir() {
+  const {ad, sifre} = oturum();
+  const dogrul = document.getElementById('eDogrul').value.trim();
+  const yeniEp = document.getElementById('eYeni').value.trim();
+
+  if(!dogrul || !yeniEp) { setStatus('eDurum','Tüm alanları doldurun.','hata'); return; }
+  if(!yeniEp.includes('@')) { setStatus('eDurum','Geçerli e-posta girin.','hata'); return; }
+  if(dogrul !== sifre)    { setStatus('eDurum','Şifre yanlış.','hata'); return; }
+
+  setBtnLoad('eBtn', true, 'E-postayı Güncelle');
+  setStatus('eDurum','','');
+
+  api({islem:'epostaDegistir', takmaAd:ad, sifre:dogrul, yeniEposta:yeniEp}, r => {
+    setBtnLoad('eBtn', false, 'E-postayı Güncelle');
+    if(r === 'Basarili') {
+      setStatus('eDurum','E-posta güncellendi ✓','ok');
+      document.getElementById('iEposta').innerText  = yeniEp;
+      document.getElementById('panelMeta').innerText = yeniEp;
+      document.getElementById('eDogrul').value='';
+      document.getElementById('eYeni').value='';
+    } else {
+      setStatus('eDurum', hata(r), 'hata');
+    }
+  });
+}
+
+// ================================================================
+// HESAP SİL (ön onay → modal)
+// ================================================================
+function hesapSilOnay() {
+  if(!document.getElementById('silPass').value.trim()) {
+    setStatus('silDurum','Şifrenizi girin.','hata'); return;
+  }
+  document.getElementById('modal').classList.add('open');
+}
+function modalKapat() { document.getElementById('modal').classList.remove('open'); }
+
+function hesapSil() {
+  modalKapat();
+  const {ad} = oturum();
+  const sifre = document.getElementById('silPass').value.trim();
+  setStatus('silDurum','İşleniyor...','');
+
+  // eski API uyumu: islem=sil
+  api({islem:'sil', takmaAd:ad, sifre:sifre}, r => {
+    if(r === 'Basarili') {
+      setStatus('silDurum','Hesap silindi.','ok');
+      oturumTemizle();
+      setTimeout(cikisYap, 1200);
+    } else {
+      setStatus('silDurum', hata(r), 'hata');
+    }
+  });
+}
+
+// ================================================================
+// ENTER TUŞU
+// ================================================================
+document.addEventListener('keypress', e => {
+  if(e.key !== 'Enter') return;
+  if(document.getElementById('authScreen').classList.contains('active')) {
+    const aktif = document.querySelector('#authScreen .tab-content.active');
+    aktif && aktif.id === 'formKayit' ? kayitOl() : girisYap();
+  }
+});
+
+// ================================================================
+// CANVAS ARKA PLAN — brass/teal parçacık ağı
+// ================================================================
+(function(){
+  const cv  = document.getElementById('bg');
+  const ctx = cv.getContext('2d');
+  let W,H,pts;
+  function init(){
+    W=cv.width=innerWidth; H=cv.height=innerHeight;
+    pts=Array.from({length:46},()=>({
+      x:Math.random()*W, y:Math.random()*H,
+      r:Math.random()*1.3+.4,
+      vx:(Math.random()-.5)*.22, vy:(Math.random()-.5)*.22,
+      a:Math.random()*.6+.2,
+      teal: Math.random() < .3
+    }));
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    for(let i=0;i<pts.length;i++){
+      const p=pts[i];
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0)p.x=W; if(p.x>W)p.x=0;
+      if(p.y<0)p.y=H; if(p.y>H)p.y=0;
+      const col = p.teal ? `rgba(95,191,168,${p.a*.4})` : `rgba(216,168,78,${p.a*.4})`;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=col; ctx.fill();
+      for(let j=i+1;j<pts.length;j++){
+        const q=pts[j],dx=p.x-q.x,dy=p.y-q.y,d=Math.sqrt(dx*dx+dy*dy);
+        if(d<110){
+          ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(q.x,q.y);
+          ctx.strokeStyle=`rgba(216,168,78,${(1-d/110)*.05})`;
+          ctx.lineWidth=.5; ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+  addEventListener('resize',init); init(); draw();
+})();
+</script>
+</body>
+</html>
